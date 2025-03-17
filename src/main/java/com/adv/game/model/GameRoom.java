@@ -15,10 +15,13 @@ public class GameRoom {
     private final String host;
     private final List<String> players = new ArrayList<>();
     private final Map<String, Integer> scores = new HashMap<>();
+    private final List<Round> rounds = new ArrayList<>();
+    private Boolean running = false;
 
     public GameRoom(String roomCode, String host) {
         this.roomCode = roomCode;
         this.host = host;
+        this.running = false;
         players.add(host);
         scores.put(host, 0);
     }
@@ -29,8 +32,6 @@ public class GameRoom {
         scores.put(player, 0);
         return true;
     }
-
-
 
     public String getRoomCode() {
         return roomCode;
@@ -46,5 +47,17 @@ public class GameRoom {
 
     public Map<String, Integer> getScores() {
         return scores;
+    }
+
+    public Boolean getRunning() {
+        return running;
+    }
+
+    public void setRunning(Boolean running) {
+        this.running = running;
+    }
+
+    public List<Round> getRounds() {
+        return rounds;
     }
 }
