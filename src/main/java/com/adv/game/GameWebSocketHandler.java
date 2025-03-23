@@ -47,17 +47,16 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         if(type.equals("CREATE_ROOM")) {
             String roomCode = gameManager.createRoom(player);
             playerSessions.put(session, roomCode);
-            session.sendMessage(new TextMessage("{ROOM_CREATED, ROOMCODE: " + roomCode + "}"));
+            broadcastMessage("ROOM_CREATED", Map.of("roomCode", roomCode));
             System.out.println(player + " CREATED THE ROOM " + roomCode);
         } else if (type.equals("JOIN_ROOM")) {
             String roomCode = jsonNode.get("roomCode").asText();
             boolean success = gameManager.joinRoom(roomCode, player);
             if (success) {
                 playerSessions.put(session, roomCode);
-                session.sendMessage(new TextMessage("{JOIN_SUCCESS, ROOMCODE: " + roomCode+  "}"));
                 System.out.println(player + " JOINED THE ROOM " + roomCode);
                 System.out.println("Players in the room " + roomCode + " are " + gameManager.getRoom(roomCode).getPlayers());
-                broadcastMessage(player + " JOINED THE ROOM " + roomCode);
+                broadcastMessage("PLAYER_JOIN", Map.of("player", player));
             } else {
                 session.sendMessage(new TextMessage("{JOIN_FAILED}"));
             }
@@ -71,7 +70,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             }
             System.out.println("API Response Time: " + (endTime - startTime) + " ms");
             System.out.println("Starting game for roomcode: " + roomCode);
-            broadcastMessage("Game is starting for roomcode: " + roomCode);
+            broadcastMessage("START_GAME", Map.of("roomCode", roomCode));
 
 
 
@@ -87,7 +86,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 if (room != null) {
                     submitAnswer(roomCode, playerName, submittedAnswer);
                 } else {
-                    broadcastMessage("ERROR SUBMITTING ANSWER");
+                    broadcastMessage("SUBMIT_ERROR", Map.of("player", playerName));
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -117,9 +116,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 try {
                     if(round > 5) {
                         scheduler.shutdown();
-                        broadcastMessage("GAME OVER!");
+                        broadcastMessage("GAME_OVER", Map.of("winner", gameWinner));
                         newGame.setActive(false);
-                        broadcastMessage("The winner is: " + gameWinner);
                         return;
                     }
 
@@ -138,7 +136,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                         }
                     }
 
-                    broadcastMessage("Round: " + currRound.getNumber() + " Guess the flag: " + currRound.getCountry().getFlagUrl());
+                    broadcastMessage("NEW_ROUND", Map.of("number", currRound.getNumber(), "flagUrl", country.getFlagUrl()));
                     round++;
                 } catch(Exception e) {
                     e.printStackTrace();
@@ -150,10 +148,12 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
     }
 
-    public void broadcastMessage(String message) {
+    public void broadcastMessage(String type, Object data) {
         for (WebSocketSession session : playerSessions.keySet()) {
             try {
-                session.sendMessage(new TextMessage(message));
+                ObjectMapper objectMapper = new ObjectMapper();
+                String jsonMessage = objectMapper.writeValueAsString(new GameMessage(type, data));
+                session.sendMessage(new TextMessage(jsonMessage));
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -171,14 +171,14 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         String correctCountryName = currentRound.getCountry().getName();
 
         if (correctCountryName.equalsIgnoreCase(answer)) {
-            broadcastMessage(player + " has guessed the right answer: " + correctCountryName);
+            broadcastMessage("CORRECT_ANSWER", Map.of("player", player, "answer", correctCountryName));
             currentRound.setActive(false);
             currentRound.setWinner(player);
             currentGame.getScores().put(player, currentGame.getScores().get(player) + 1);
             System.out.println(currentGame.getScores());
 
             if(currentGame.getRounds().size() >= 5 && currentGame.isActive()) {
-                broadcastMessage("GAME OVER!");
+                broadcastMessage("GAME_OVER", Map.of("winner", gameWinner));
                 currentGame.setActive(false);
                 System.out.println(currentGame.getScores());
                 scheduler.shutdown();
@@ -202,10 +202,9 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
 
         if (game.getRounds().size() >= 5 && game.isActive()) {
-            broadcastMessage("GAME OVER!");
+            broadcastMessage("GAME_OVER", Map.of("winner", gameWinner));
             game.setActive(false);
             System.out.println(game.getScores());
-            broadcastMessage("The winner is: " + gameWinner);
             scheduler.shutdown();
             return;
         }
@@ -225,7 +224,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         }
 
 
-        broadcastMessage("Round: " + newRound.getNumber() + " Guess the flag: " + newRound.getCountry().getFlagUrl());
+        broadcastMessage("NEW_ROUND", Map.of("number", newRound.getNumber(), "flagUrl", country.getFlagUrl()));
 
     }
 
