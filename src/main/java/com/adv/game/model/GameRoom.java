@@ -15,7 +15,7 @@ public class GameRoom {
     private final String host;
     private final List<String> players = new ArrayList<>();
     private final Map<String, Integer> scores = new HashMap<>();
-    private final List<Round> rounds = new ArrayList<>();
+    private List<Game> games = new ArrayList<>();
     private Boolean running = false;
 
     public GameRoom(String roomCode, String host) {
@@ -57,7 +57,11 @@ public class GameRoom {
         this.running = running;
     }
 
-    public List<Round> getRounds() {
-        return rounds;
+    public List<Game> getGames() {
+        return games;
+    }
+
+    public void setGames(List<Game> games) {
+        this.games = games;
     }
 }
