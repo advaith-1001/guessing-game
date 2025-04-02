@@ -2,6 +2,7 @@ package com.adv.game;
 
 import com.adv.game.model.*;
 import com.adv.game.service.FlagService;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.netty.util.concurrent.ScheduledFuture;
@@ -10,10 +11,7 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -47,7 +45,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         if(type.equals("CREATE_ROOM")) {
             String roomCode = gameManager.createRoom(player);
             playerSessions.put(session, roomCode);
-            broadcastMessage("ROOM_CREATED", Map.of("roomCode", roomCode));
+            broadcastMessage("ROOM_CREATED", Map.of("roomCode", roomCode, "players", gameManager.getRoom(roomCode).getPlayers()));
             System.out.println(player + " CREATED THE ROOM " + roomCode);
         } else if (type.equals("JOIN_ROOM")) {
             String roomCode = jsonNode.get("roomCode").asText();
@@ -56,10 +54,26 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 playerSessions.put(session, roomCode);
                 System.out.println(player + " JOINED THE ROOM " + roomCode);
                 System.out.println("Players in the room " + roomCode + " are " + gameManager.getRoom(roomCode).getPlayers());
-                broadcastMessage("PLAYER_JOIN", Map.of("player", player));
+                broadcastMessage("PLAYER_JOIN", Map.of("player", player, "players", gameManager.getRoom(roomCode).getPlayers()));
             } else {
                 session.sendMessage(new TextMessage("{JOIN_FAILED}"));
             }
+        } else if (type.equals("EXIT_ROOM")){
+            String roomCode = jsonNode.get("roomCode").asText();
+            GameRoom room = gameManager.getRoom(roomCode);
+            System.out.println("Before removal: " + room.getPlayers());
+            System.out.println("Removing player: " + player);
+            boolean removed = room.getPlayers().removeIf(playername -> player.equals(playername));
+            System.out.println("Removed? " + removed);
+            System.out.println("After removal: " + room.getPlayers());
+
+            // ✅ Broadcast updated player list
+            broadcastMessage("PLAYER_EXIT", Map.of(
+                    "roomCode", roomCode,
+                    "player", player,
+                    "players", room.getPlayers()
+            ));
+            System.out.println("Players in the room " + roomCode + " are " + room.getPlayers());
         } else if (type.equals("START_GAME")) {
             String roomCode = jsonNode.get("roomCode").asText();
             GameRoom room = gameManager.getRoom(roomCode);
@@ -149,19 +163,36 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     }
 
     public void broadcastMessage(String type, Object data) {
-        for (WebSocketSession session : playerSessions.keySet()) {
-            try {
-                ObjectMapper objectMapper = new ObjectMapper();
-                String jsonMessage = objectMapper.writeValueAsString(new GameMessage(type, data));
-                session.sendMessage(new TextMessage(jsonMessage));
-            } catch (IOException e) {
-                e.printStackTrace();
+        ObjectMapper objectMapper = new ObjectMapper();
+        String jsonMessage;
+
+        try {
+            jsonMessage = objectMapper.writeValueAsString(new GameMessage(type, data));
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+            return;
+        }
+
+        Iterator<WebSocketSession> iterator = playerSessions.keySet().iterator();
+        while (iterator.hasNext()) {
+            WebSocketSession session = iterator.next();
+            if (session.isOpen()) {  // ✅ Check if session is still open
+                try {
+                    session.sendMessage(new TextMessage(jsonMessage));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            } else {
+                System.out.println("Removing closed session: " + session.getId());
+                iterator.remove();  // ✅ Remove closed sessions from the map
             }
         }
     }
 
     public void submitAnswer(String roomCode, String player, String answer  ) {
         GameRoom room = gameManager.getRoom(roomCode);
+        System.out.println(room.getRunning());
+        System.out.println(room.getRoomCode());
         if (room == null || !room.getRunning()) return;
 
 
