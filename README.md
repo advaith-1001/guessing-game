@@ -1,6 +1,6 @@
 # 🕹️ Real-Time Multiplayer Guessing Game
 
-A real-time multiplayer flag guessing game where players compete to identify countries based on displayed flags. The first player to type the correct country name earns points, and the player with the highest score wins.🔗[Frontend link]([https://github.com/advaith-1001/guessing-game-frontend])
+A real-time multiplayer flag guessing game where players compete to identify countries based on displayed flags. The first player to type the correct country name earns points, and the player with the highest score wins.🔗[Frontend link](https://github.com/advaith-1001/guessing-game-frontend)
 
 ## 🚀 Features
 
