@@ -6,6 +6,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.netty.util.concurrent.ScheduledFuture;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
@@ -16,6 +18,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+@Component
 public class GameWebSocketHandler extends TextWebSocketHandler {
 
     private final GameManager gameManager = new GameManager();
@@ -23,10 +26,11 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     String gameWinner = null;
 
 
-        FlagService flagService = new FlagService();
-        long startTime = System.currentTimeMillis();
-        List<Country> countries = flagService.fetchAllFlags();
-        long endTime = System.currentTimeMillis();
+    @Autowired
+    private FlagService flagService;
+
+    private List<Country> countries = new ArrayList<>();
+    private boolean countriesLoaded = false;
 
     Random random = new Random();
 
@@ -75,6 +79,12 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             ));
             System.out.println("Players in the room " + roomCode + " are " + room.getPlayers());
         } else if (type.equals("START_GAME")) {
+
+            if (!countriesLoaded) {
+                countries = flagService.fetchAllFlags();
+                countriesLoaded = true;
+            }
+
             String roomCode = jsonNode.get("roomCode").asText();
             GameRoom room = gameManager.getRoom(roomCode);
             gameWinner = "";
@@ -82,11 +92,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 session.sendMessage(new TextMessage("Game already running"));
                 return;
             }
-            System.out.println("API Response Time: " + (endTime - startTime) + " ms");
             System.out.println("Starting game for roomcode: " + roomCode);
             broadcastMessage("START_GAME", Map.of("roomCode", roomCode));
-
-
 
             startGame(roomCode, countries);
 
@@ -129,7 +136,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             public void run() {
                 try {
                     if(round > 5) {
-                        scheduler.shutdown();
+                        currentRoundTask.cancel(false);
                         broadcastMessage("GAME_OVER", Map.of("winner", gameWinner));
                         newGame.setActive(false);
                         return;
@@ -209,7 +216,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             System.out.println(currentGame.getScores());
 
             if(currentGame.getRounds().size() >= 5 && currentGame.isActive()) {
-                broadcastMessage("GAME_OVER", Map.of("winner", gameWinner));
+                broadcastMessage("GAME_OVER", Map.of("winner", gameWinner, "scores", room.getScores()));
                 currentGame.setActive(false);
                 System.out.println(currentGame.getScores());
                 scheduler.shutdown();

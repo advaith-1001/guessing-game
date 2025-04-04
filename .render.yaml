@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: springboot-backend
+    env: java
+    buildCommand: ./mvnw clean install
+    startCommand: java -jar target/*.jar
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
